@@ -99,6 +99,32 @@
   .tldr strong.label { color: var(--accent); letter-spacing: 0.02em;
     font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 3px; }
 
+  /* Plain-English story block */
+  .story {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 22px; margin: 0 0 22px; box-shadow: var(--shadow);
+  }
+  .story h4 { font-size: 13px; margin: 0 0 10px; font-weight: 700;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .story p { margin: 0 0 10px; }
+  .story p:last-child { margin-bottom: 0; }
+  .story .persona { font-style: italic; color: var(--muted); }
+  .story strong.emph { color: var(--accent); font-weight: 600; }
+
+  details.tech { margin: 18px 0; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface); overflow: hidden; }
+  details.tech > summary {
+    padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: 13px;
+    color: var(--muted); background: var(--surface-2); user-select: none;
+    list-style: none;
+  }
+  details.tech > summary::before { content: "▸ "; display: inline-block; transition: transform 150ms; }
+  details.tech[open] > summary::before { transform: rotate(90deg); }
+  details.tech > summary:hover { color: var(--text); }
+  details.tech > *:not(summary) { padding-left: 18px; padding-right: 18px; }
+  details.tech > *:nth-child(2) { padding-top: 14px; }
+  details.tech > *:last-child { padding-bottom: 14px; }
+
   /* Scope grid */
   .scope {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
@@ -206,41 +232,53 @@
   </h2>
   <p class="meta"><span>Story · Priority High · In Development</span><span>Component: Camunda</span><span>Assignee: Erki Kriks</span></p>
 
+  <div class="story">
+    <h4>The story, in plain English</h4>
+    <p>Imagine a business license application. The applicant submits. Then four officers review it in order: Officer A checks identity, Officer B checks the company documents, Officer C checks tax status, Officer D signs off.</p>
+    <p><span class="persona">Today</span>, if Officer C spots a small problem — say, a mistyped tax ID — and sends the file back to the applicant, the applicant fixes it, and then <strong>the whole review restarts</strong>: Officer A checks identity again, Officer B re-reviews the company docs, and only then does C look again. Everyone has to re-do their part, even though only one tiny field changed.</p>
+    <p><span class="persona">What we want to add</span>: Officer C should be able to say <strong class="emph">"just send it to the applicant to fix this one thing, then bring it straight back to me."</strong> The applicant fixes it, and it lands directly back on Officer C's desk — A, B, and D don't see it again. It's a <strong>targeted loop</strong> instead of a <strong>full restart</strong>.</p>
+    <p>Both options must exist side-by-side: sometimes you <em>do</em> want a full re-review (say, a new document was added that changes everything); sometimes you just want the one correction. The officer chooses which mode when they send back.</p>
+  </div>
+
   <div class="tldr">
     <strong class="label">At a glance</strong>
-    Add an optional <code>resubmissionMode</code> flag on the send-back destination. When set to <code>ROLE_ONLY</code>, the schema generator emits a Camunda <em>call activity</em> that loops the target role and signals back to the originator when done — instead of restarting the main flow.
+    Add an optional "resubmission mode" setting on the send-back action. When set to "role only," the workflow pauses the sender's task, sends the file to just that one role, and resumes the paused task when the role is done — instead of restarting the main flow.
   </div>
 
   <div class="scope">
-    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + ExclusiveBuilder + form modal</div></div>
+    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + schema generator + send-back modal</div></div>
     <div class="scope-card light"><div class="label">DS-Backend</div><div class="value">Minor</div><div class="hint">Recognize return state in task view</div></div>
-    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Native primitives only</div></div>
+    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Uses native engine features only</div></div>
   </div>
 
-  <h3>Today</h3>
-  <p class="today">When a reviewer declines and sends back, the BPMN generator wires the task back into the main sequence flow at that role. Execution resumes forward from that point — everyone downstream runs again. A <code>FileDeclineStatus</code> has a <code>RoleStatusDestination</code> that just picks the target role; there is no notion of <em>how</em> control should come back.</p>
+  <details class="tech" open>
+    <summary>Technical breakdown (for developers)</summary>
 
-  <h3>What's missing</h3>
-  <p>A way to say: "loop this one role only, then return to me" — a boomerang instead of a restart.</p>
+    <h3>Today</h3>
+    <p class="today">When a reviewer declines and sends back, the BPMN generator wires the task back into the main sequence flow at that role. Execution resumes forward from that point — everyone downstream runs again. A <code>FileDeclineStatus</code> has a <code>RoleStatusDestination</code> that just picks the target role; there is no notion of <em>how</em> control should come back.</p>
 
-  <h3>Minimum-change concept</h3>
-  <ol>
-    <li><strong>Model</strong> — add one optional field on <code>RoleStatusDestination</code> (or on the send-back action): <code>resubmissionMode</code> = <code>DETERMINISTIC</code> (default) | <code>ROLE_ONLY</code>. Null or absent preserves current semantics.</li>
-    <li><strong>Schema generator</strong> (<code>ExclusiveBuilder</code>) — when <code>ROLE_ONLY</code>:
-      <ul>
-        <li>Don't re-enter the main sequence at the target role.</li>
-        <li>Emit a Camunda <strong>call activity</strong> (or bounded sub-process) scoped to that one role's user task, with the originating role's task parked on a message/signal event.</li>
-        <li>On sub-flow completion, signal back to the originator — the process resumes exactly where it paused.</li>
-      </ul>
-    </li>
-    <li><strong>Form UI</strong> (<code>SendBackModalWindowGenerator</code>) — if the service author enabled <code>ROLE_ONLY</code> on that transition, render a radio: "Full re-review" vs "Just fix and return". Otherwise no UI change.</li>
-    <li><strong>Runtime (DS-Backend)</strong> — no business logic change; Camunda handles sub-process lifecycle natively. Minor: the task view may need to recognize the "returned from role-only sub-flow" state so the originator's UI shows the right label.</li>
-    <li><strong>Edge case (from the AC)</strong> — if the "role-only" target declines or never responds, the sub-process terminates with a signal that the originator interprets as a forced deterministic fallback (revert to today's behavior rather than deadlock).</li>
-  </ol>
+    <h3>What's missing</h3>
+    <p>A way to say: "loop this one role only, then return to me" — a boomerang instead of a restart.</p>
 
-  <div class="callout">
-    <strong>Why minimum-change:</strong> one enum field, one branch in one builder, reuses Camunda's native call-activity and message-event primitives. BPMN output for every currently deployed service is byte-for-byte unchanged.
-  </div>
+    <h3>Minimum-change concept</h3>
+    <ol>
+      <li><strong>Model</strong> — add one optional field on <code>RoleStatusDestination</code> (or on the send-back action): <code>resubmissionMode</code> = <code>DETERMINISTIC</code> (default) | <code>ROLE_ONLY</code>. Null or absent preserves current semantics.</li>
+      <li><strong>Schema generator</strong> (<code>ExclusiveBuilder</code>) — when <code>ROLE_ONLY</code>:
+        <ul>
+          <li>Don't re-enter the main sequence at the target role.</li>
+          <li>Emit a Camunda <strong>call activity</strong> (or bounded sub-process) scoped to that one role's user task, with the originating role's task parked on a message/signal event.</li>
+          <li>On sub-flow completion, signal back to the originator — the process resumes exactly where it paused.</li>
+        </ul>
+      </li>
+      <li><strong>Form UI</strong> (<code>SendBackModalWindowGenerator</code>) — if the service author enabled <code>ROLE_ONLY</code> on that transition, render a radio: "Full re-review" vs "Just fix and return". Otherwise no UI change.</li>
+      <li><strong>Runtime (DS-Backend)</strong> — no business logic change; Camunda handles sub-process lifecycle natively. Minor: the task view may need to recognize the "returned from role-only sub-flow" state so the originator's UI shows the right label.</li>
+      <li><strong>Edge case (from the AC)</strong> — if the "role-only" target declines or never responds, the sub-process terminates with a signal that the originator interprets as a forced deterministic fallback (revert to today's behavior rather than deadlock).</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Why minimum-change:</strong> one enum field, one branch in one builder, reuses Camunda's native call-activity and message-event primitives. BPMN output for every currently deployed service is byte-for-byte unchanged.
+    </div>
+  </details>
 </section>
 
 <!-- PANEL 2 ========================================================= -->
@@ -250,39 +288,52 @@
   </h2>
   <p class="meta"><span>Story · Priority Highest · To Do</span><span>Reference: Jamaica SEZ service</span></p>
 
+  <div class="story">
+    <h4>The story, in plain English</h4>
+    <p>Think of Jamaica's <a href="https://bpa.jamaica.eregistrations.org/services/9f3fdc17-7b19-4790-90eb-54023c7bc3cc/forms/applicant-form" target="_blank" rel="noopener">Special Economic Zone application</a>. After the applicant submits, <strong>eight different agencies review the file at the same time, in parallel</strong>: tax authority, customs, legal, planning, and so on. Each agency either gives its green light or raises a flag. Once all eight have spoken, a coordinator takes the final decision.</p>
+    <p><span class="persona">Today</span>, if <em>any one</em> of those eight agencies rejects, <strong>the entire case dies immediately</strong>. The other seven agencies — some of whom may have already approved — never get a chance to finish, and the coordinator never even sees the case. A single "no" blows up everything.</p>
+    <p><span class="persona">What we want to add</span>: allow a rejection from one agency to <strong class="emph">end just that agency's branch</strong> — not the whole case. The other agencies finish their work normally. The coordinator sees the full picture: "five approved, two approved with comments, one rejected" — and decides.</p>
+    <p>The word "dead branch" means: <em>this branch is done, it contributed nothing, and we just move on without it</em>. The case stays alive.</p>
+    <p>Also: some agencies (like the three "No objection" bodies in the Jamaica flow) are <strong>optional</strong> — they may not weigh in at all, and the case should proceed without waiting for them forever. Same mechanism.</p>
+  </div>
+
   <div class="tldr">
     <strong class="label">At a glance</strong>
-    Add an optional <code>branchTerminationMode</code> flag on a role. When set, a <code>FileRejectStatus</code> no longer kills the whole process — it terminates only that branch's token, letting the inclusive-join still fire on the remaining active branches.
+    Add an optional flag on each parallel role saying "this branch is allowed to dead-end." When set, a rejection from that role ends its branch cleanly without killing the whole case — the coordinator still gets the final decision with whatever input arrived.
   </div>
 
   <div class="scope">
-    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + JoinSequence/ExclusiveBuilder + DMN</div></div>
+    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + schema generator + DMN</div></div>
     <div class="scope-card none"><div class="label">DS-Backend</div><div class="value">Untouched</div><div class="hint">No runtime change</div></div>
-    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Relies on inclusive-join semantics</div></div>
+    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Uses native inclusive-join behavior</div></div>
   </div>
 
-  <h3>Today</h3>
-  <p class="today">Part B (post-submission back-office) can fork into parallel roles via an inclusive gateway, then join. For the join to fire, each active branch must emit a <code>FileValidatedStatus</code>. If a role instead issues a <code>FileRejectStatus</code>, the whole process terminates — there is no concept of "this objection kills its branch but the case continues" or "this branch can be skipped without starving the join".</p>
+  <details class="tech" open>
+    <summary>Technical breakdown (for developers)</summary>
 
-  <h3>Jamaica pattern</h3>
-  <p>The <a href="https://bpa.jamaica.eregistrations.org/services/9f3fdc17-7b19-4790-90eb-54023c7bc3cc/forms/applicant-form" target="_blank" rel="noopener">SEZ-Developer service</a> (v70) has 8 parallel registrations: three "No objection" steps (JCA, MOFPS, TAJ) and four screenings (BPSS, CAS, LSU, TSI). A "No objection" role may legitimately not weigh in; one screening may reject while others approve — yet the case must still reach the coordinator. Branches that go nowhere must not block the join.</p>
+    <h3>Today</h3>
+    <p class="today">Part B (post-submission back-office) can fork into parallel roles via an inclusive gateway, then join. For the join to fire, each active branch must emit a <code>FileValidatedStatus</code>. If a role instead issues a <code>FileRejectStatus</code>, the whole process terminates — there is no concept of "this objection kills its branch but the case continues" or "this branch can be skipped without starving the join".</p>
 
-  <h3>Minimum-change concept</h3>
-  <ol>
-    <li><strong>Model</strong> — add one optional flag on <code>Role</code> (or on the fork entry in the graph): <code>branchTerminationMode</code> = <code>BLOCKING</code> (default = today) | <code>DEAD_END_ON_REJECT</code> | <code>OPTIONAL</code>. Unset = today's behavior.</li>
-    <li><strong>Schema generator</strong> (<code>JoinSequenceBuilder</code> + <code>ExclusiveBuilder</code>) — when a branch is marked dead-end-capable:
-      <ul>
-        <li>On <code>FileRejectStatus</code>, route that branch to a <strong>terminate-branch end event</strong> scoped to the fork's sub-process, not the global terminate. Camunda's inclusive join already tolerates tokens that never arrive; we leverage that by producing a token-consuming terminate event per branch.</li>
-        <li>Extend the DMN decision table at the join with a "branch dead" input so the downstream decision explicitly knows which branches didn't vote.</li>
-      </ul>
-    </li>
-    <li><strong>Runtime (DS-Backend)</strong> — no change. Camunda's inclusive-join semantics already handle arrived-vs-didn't-arrive tokens.</li>
-    <li><strong>UI</strong> — service author sees a new checkbox on the role: "Allow this branch to dead-end on reject". No citizen-facing change.</li>
-  </ol>
+    <h3>Jamaica pattern</h3>
+    <p>The SEZ-Developer service (v70) has 8 parallel registrations: three "No objection" steps (JCA, MOFPS, TAJ) and four screenings (BPSS, CAS, LSU, TSI). A "No objection" role may legitimately not weigh in; one screening may reject while others approve — yet the case must still reach the coordinator. Branches that go nowhere must not block the join.</p>
 
-  <div class="callout">
-    <strong>Why minimum-change:</strong> exploits Camunda's existing inclusive-gateway + terminate-end-event primitives. Changes confined to two builders plus one DMN column. Services that don't set the flag produce identical BPMN as today.
-  </div>
+    <h3>Minimum-change concept</h3>
+    <ol>
+      <li><strong>Model</strong> — add one optional flag on <code>Role</code> (or on the fork entry in the graph): <code>branchTerminationMode</code> = <code>BLOCKING</code> (default = today) | <code>DEAD_END_ON_REJECT</code> | <code>OPTIONAL</code>. Unset = today's behavior.</li>
+      <li><strong>Schema generator</strong> (<code>JoinSequenceBuilder</code> + <code>ExclusiveBuilder</code>) — when a branch is marked dead-end-capable:
+        <ul>
+          <li>On <code>FileRejectStatus</code>, route that branch to a <strong>terminate-branch end event</strong> scoped to the fork's sub-process, not the global terminate. Camunda's inclusive join already tolerates tokens that never arrive; we leverage that by producing a token-consuming terminate event per branch.</li>
+          <li>Extend the DMN decision table at the join with a "branch dead" input so the downstream decision explicitly knows which branches didn't vote.</li>
+        </ul>
+      </li>
+      <li><strong>Runtime (DS-Backend)</strong> — no change. Camunda's inclusive-join semantics already handle arrived-vs-didn't-arrive tokens.</li>
+      <li><strong>UI</strong> — service author sees a new checkbox on the role: "Allow this branch to dead-end on reject". No citizen-facing change.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Why minimum-change:</strong> exploits Camunda's existing inclusive-gateway + terminate-end-event primitives. Changes confined to two builders plus one DMN column. Services that don't set the flag produce identical BPMN as today.
+    </div>
+  </details>
 </section>
 
 <!-- PANEL 3 ========================================================= -->
