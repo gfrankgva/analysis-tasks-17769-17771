@@ -133,6 +133,55 @@
   details.fold.story > summary { color: var(--accent); }
   details.fold.story[open] > summary { background: var(--accent-soft); }
 
+  /* Byline / roles strip */
+  .byline {
+    display: flex; flex-wrap: wrap; gap: 14px 22px; margin: 0 0 22px;
+    padding: 12px 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: var(--shadow); font-size: 13.5px;
+  }
+  .byline .role {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .byline .role .icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .byline .role.dev .icon { background: #eef2f7; color: #4a5568; }
+  .byline .role.val .icon { background: var(--warn-soft); color: var(--warn); }
+  .byline .role .who strong { font-weight: 600; display: block; line-height: 1.2; }
+  .byline .role .who span { font-size: 11.5px; color: var(--muted-2); }
+
+  /* Validation panel */
+  details.fold.validation > summary { color: var(--warn); }
+  details.fold.validation[open] > summary { background: var(--warn-soft); }
+  .val-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .val-pill {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border-strong);
+    background: var(--surface); font-size: 13px; font-weight: 500; color: var(--muted);
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    transition: all 120ms;
+  }
+  .val-pill:hover { border-color: var(--muted); color: var(--text); }
+  .val-pill.active.approve { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+  .val-pill.active.reject { background: #fdecec; color: #c1221b; border-color: #c1221b; }
+  .val-pill.active.pending { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+  .val-comment {
+    width: 100%; min-height: 80px; padding: 10px 12px; border-radius: 6px;
+    border: 1px solid var(--border); font: inherit; font-size: 14px; resize: vertical;
+    background: var(--surface); color: var(--text);
+  }
+  .val-comment:focus { outline: 2px solid var(--accent-border); border-color: var(--accent); }
+  .val-hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .val-submit {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px; background: var(--accent); color: white;
+    text-decoration: none; font-weight: 600; font-size: 13.5px; margin-top: 10px;
+    border: none; cursor: pointer;
+  }
+  .val-submit:hover { background: #1558cc; text-decoration: none; }
+
   /* Scope grid */
   .scope {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
@@ -208,6 +257,34 @@
     <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a>
     — plain-English approach, minimum code change, full backwards compatibility.</p>
 </header>
+
+<div class="byline">
+  <div class="role">
+    <span class="icon">FG</span>
+    <span class="who"><strong>Frank Grozel</strong><span>Analysis author</span></span>
+  </div>
+  <div class="role dev">
+    <span class="icon">EK</span>
+    <span class="who"><strong>Erki Kriks</strong><span>Developer</span></span>
+  </div>
+  <div class="role val">
+    <span class="icon">MB</span>
+    <span class="who"><strong>Mehdi Benmoumen</strong><span>Validation — pending</span></span>
+  </div>
+</div>
+
+<details class="fold validation">
+  <summary>Validation (Mehdi Benmoumen)</summary>
+  <p style="margin-top: 0;">Mehdi, please confirm or reject the conceptual approach below. If rejected, add a comment so Frank knows what to revise before tech specs.</p>
+  <div class="val-row">
+    <button type="button" class="val-pill approve" data-vote="approve">✓ Approve</button>
+    <button type="button" class="val-pill reject" data-vote="reject">✗ Reject</button>
+    <button type="button" class="val-pill pending active" data-vote="pending">⏳ Still thinking</button>
+  </div>
+  <textarea class="val-comment" placeholder="Optional comment (required if rejecting)…"></textarea>
+  <p class="val-hint">This page is static — your choice + comment below won't persist here. Click <strong>Submit validation</strong> to send your decision via a pre-filled GitHub issue (or reply on the Jira tickets directly).</p>
+  <a class="val-submit" id="val-submit-link" href="https://github.com/gfrankgva/analysis-tasks-17769-17771/issues/new?title=Validation%20by%20Mehdi%20Benmoumen&body=Decision:%20pending%0A%0AComment:%0A" target="_blank" rel="noopener">Submit validation →</a>
+</details>
 
 <details class="fold" open>
   <summary>How the two tickets relate</summary>
@@ -421,6 +498,28 @@
     if (e.key === '2') activate('p2');
     if (e.key === '3') activate('p3');
   });
+
+  // Validation pills + submit link
+  const pills = document.querySelectorAll('.val-pill');
+  const comment = document.querySelector('.val-comment');
+  const submit = document.getElementById('val-submit-link');
+  let vote = 'pending';
+
+  function updateSubmit() {
+    const c = comment ? comment.value : '';
+    const body = `Decision: ${vote}\n\nComment:\n${c}`;
+    submit.href = 'https://github.com/gfrankgva/analysis-tasks-17769-17771/issues/new'
+      + '?title=' + encodeURIComponent('Validation by Mehdi Benmoumen — ' + vote)
+      + '&body=' + encodeURIComponent(body);
+  }
+
+  pills.forEach(p => p.addEventListener('click', () => {
+    pills.forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    vote = p.dataset.vote;
+    updateSubmit();
+  }));
+  if (comment) comment.addEventListener('input', updateSubmit);
 </script>
 </body>
 </html>
