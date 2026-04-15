@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TOBE-17769 & TOBE-17771 — Conceptual analysis</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f7f8fa;
+    --border: #e3e5e8;
+    --text: #1a1d21;
+    --muted: #5b6169;
+    --accent: #1f6feb;
+    --accent-soft: #e8f0fe;
+    --code-bg: #f2f3f5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15px; line-height: 1.55; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 28px 72px; }
+  h1 { font-size: 22px; margin: 0 0 6px; font-weight: 600; letter-spacing: -0.01em; }
+  h2 { font-size: 18px; margin: 28px 0 10px; font-weight: 600; }
+  h3 { font-size: 15px; margin: 22px 0 6px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); margin: 0 0 18px; }
+  .intro { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 0 0 24px; }
+  .intro h1 { margin-top: 0; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 24px; }
+  .tab {
+    background: none; border: none; padding: 10px 18px; font: inherit;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; font-weight: 500;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-key { font-size: 11px; color: var(--muted); margin-left: 6px; font-weight: 400; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .meta { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+  .meta span + span::before { content: " · "; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; }
+  ol, ul { padding-left: 22px; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+  .callout {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 10px 14px; margin: 14px 0; border-radius: 0 6px 6px 0;
+  }
+  .callout strong { color: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  .today { color: var(--muted); font-style: italic; }
+  footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="intro">
+  <h1>BPMN flow control — two related additions</h1>
+  <p class="lede">Both tickets touch the same subsystem: the BPA-backend Camunda 7 BPMN schema generator and the notion of <em>branching control</em> in service workflows. They extend — not replace — today's deterministic model. Both are designed to stay fully backwards compatible: services that don't opt in produce byte-identical BPMN.</p>
+  <ul>
+    <li><strong>TOBE-17769</strong> adds a <em>targeted return loop</em> — send a task to one role and wait for it, without restarting the downstream flow.</li>
+    <li><strong>TOBE-17771</strong> adds <em>dead-ending branches</em> — let one parallel branch terminate cleanly without killing the whole process at the join.</li>
+  </ul>
+  <p>Conceptually: 17769 is about <strong>returning</strong> (backwards/inwards control), 17771 is about <strong>abandoning</strong> (forwards branch termination). Different primitives, same layer of code.</p>
+</div>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-panel="p1" role="tab">TOBE-17769 <span class="tab-key">Resubmit to role only</span></button>
+  <button class="tab" data-panel="p2" role="tab">TOBE-17771 <span class="tab-key">Dead branches in part B</span></button>
+</nav>
+
+<section id="p1" class="panel active" role="tabpanel">
+  <h2>Resubmit to role only</h2>
+  <p class="meta"><span>Story · Priority High · In Development</span><span>Component: Camunda</span><span>Assignee: Erki Kriks</span></p>
+
+  <h3>Today</h3>
+  <p class="today">When a reviewer declines and sends back, the BPMN generator wires the task back into the main sequence flow at that role. Execution resumes forward from that point — everyone downstream runs again. A <code>FileDeclineStatus</code> has a <code>RoleStatusDestination</code> that just picks the target role; there is no notion of <em>how</em> the control should come back.</p>
+
+  <h3>What's missing</h3>
+  <p>A way to say: "loop this one role only, then return to me" — a boomerang instead of a restart.</p>
+
+  <h3>Minimum-change concept</h3>
+  <ol>
+    <li><strong>Model</strong> — add one optional field on <code>RoleStatusDestination</code> (or on the send-back action): <code>resubmissionMode</code> = <code>DETERMINISTIC</code> (default) | <code>ROLE_ONLY</code>. Null or absent preserves current semantics.</li>
+    <li><strong>Schema generator</strong> (<code>ExclusiveBuilder</code>) — when <code>ROLE_ONLY</code>:
+      <ul>
+        <li>Don't re-enter the main sequence at the target role.</li>
+        <li>Emit a Camunda <strong>Call Activity</strong> (or bounded sub-process) scoped to that one role's user task, with the originating role's task parked on a message/signal event.</li>
+        <li>On sub-flow completion, signal back to the originator — the process resumes exactly where it paused.</li>
+      </ul>
+    </li>
+    <li><strong>Form UI</strong> (<code>SendBackModalWindowGenerator</code>) — if the service author enabled <code>ROLE_ONLY</code> on that transition, render a radio: "Full re-review" vs "Just fix and return". Otherwise no UI change.</li>
+    <li><strong>Runtime (DS-Backend)</strong> — no logic change; Camunda handles sub-process lifecycle natively. Only the return-signal callback is new.</li>
+    <li><strong>Edge case (from the AC)</strong> — if the "role-only" target declines or never responds, the sub-process terminates with a signal that the originator interprets as a forced deterministic fallback (revert to today's behavior rather than deadlock). Configurable, or hardcoded per safety.</li>
+  </ol>
+
+  <div class="callout">
+    <strong>Why minimum-change:</strong> one enum field, one branch in one builder, reuses Camunda's native call-activity and message-event primitives. BPMN output for every currently deployed service is byte-for-byte unchanged.
+  </div>
+</section>
+
+<section id="p2" class="panel" role="tabpanel">
+  <h2>Dead branches in part B</h2>
+  <p class="meta"><span>Story · Priority Highest · To Do</span><span>Reference: Jamaica SEZ service</span></p>
+
+  <h3>Today</h3>
+  <p class="today">Part B (post-submission back-office) can fork into parallel roles via an inclusive gateway, then join. For the join to fire, each active branch must emit a <code>FileValidatedStatus</code>. If a role instead issues a <code>FileRejectStatus</code>, the whole process terminates — there is no concept of "this objection kills its branch but the case continues" or "this branch can be skipped without starving the join".</p>
+
+  <h3>Jamaica pattern</h3>
+  <p>The SEZ-Developer service (v70) has 8 parallel registrations: three "No objection" steps (JCA, MOFPS, TAJ) and four screenings (BPSS, CAS, LSU, TSI). A "No objection" role may legitimately not weigh in; one screening may reject while others approve — yet the case must still reach the coordinator. Branches that go nowhere must not block the join.</p>
+
+  <h3>Minimum-change concept</h3>
+  <ol>
+    <li><strong>Model</strong> — add one optional flag on <code>Role</code> (or on the fork entry in the graph): <code>branchTerminationMode</code> = <code>BLOCKING</code> (default = today) | <code>DEAD_END_ON_REJECT</code> | <code>OPTIONAL</code>. Unset = today's behavior.</li>
+    <li><strong>Schema generator</strong> (<code>JoinSequenceBuilder</code> + <code>ExclusiveBuilder</code>) — when a branch is marked dead-end-capable:
+      <ul>
+        <li>On <code>FileRejectStatus</code>, route that branch to a <strong>terminate-branch end event</strong> scoped to the fork's sub-process, not the global terminate. Camunda's inclusive join already tolerates tokens that never arrive when not activated; we leverage that by producing a token-consuming terminate event per branch.</li>
+        <li>Extend the DMN decision table at the join with a "branch dead" input so the downstream decision explicitly knows which branches didn't vote.</li>
+      </ul>
+    </li>
+    <li><strong>Runtime (DS-Backend)</strong> — no change. Camunda's inclusive-join semantics already handle arrived-vs-didn't-arrive tokens.</li>
+    <li><strong>UI</strong> — service author sees a new checkbox on the role: "Allow this branch to dead-end on reject". No citizen-facing change.</li>
+  </ol>
+
+  <div class="callout">
+    <strong>Why minimum-change:</strong> exploits Camunda's existing inclusive-gateway + terminate-end-event primitives. Changes confined to two builders plus one DMN column. Services that don't set the flag produce identical BPMN as today.
+  </div>
+</section>
+
+<footer>
+  Generated 2026-04-15 · source: Jira MCP (TOBE-17769, TOBE-17771) + BPA MCP (jamaica/9f3fdc17) + eR code exploration.
+</footer>
+
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    panels.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.panel).classList.add('active');
+  }));
+</script>
+</body>
+</html>
