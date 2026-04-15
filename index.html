@@ -2,81 +2,223 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TOBE-17769 & TOBE-17771 — Conceptual analysis</title>
 <style>
   :root {
-    --bg: #ffffff;
-    --surface: #f7f8fa;
-    --border: #e3e5e8;
+    --bg: #fbfbfc;
+    --surface: #ffffff;
+    --surface-2: #f4f6f9;
+    --border: #e1e4e8;
+    --border-strong: #cfd3d8;
     --text: #1a1d21;
     --muted: #5b6169;
+    --muted-2: #848a92;
     --accent: #1f6feb;
-    --accent-soft: #e8f0fe;
+    --accent-soft: #eaf2ff;
+    --accent-border: #c7dbf7;
+    --good: #1a7f37;
+    --good-soft: #eaf5ec;
+    --warn: #9a6700;
+    --warn-soft: #fff6dc;
     --code-bg: #f2f3f5;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 15px; line-height: 1.55; }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 28px 72px; }
-  h1 { font-size: 22px; margin: 0 0 6px; font-weight: 600; letter-spacing: -0.01em; }
-  h2 { font-size: 18px; margin: 28px 0 10px; font-weight: 600; }
-  h3 { font-size: 15px; margin: 22px 0 6px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    font-size: 15.5px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 36px 28px 80px; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  a.ticket {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent-soft); border: 1px solid var(--accent-border);
+    padding: 1px 8px; border-radius: 5px; font-weight: 600;
+    font-size: 0.92em; white-space: nowrap;
+  }
+  a.ticket:hover { background: #dbe8fb; text-decoration: none; }
+  a.ticket::after { content: " ↗"; font-size: 0.78em; opacity: 0.6; }
+
+  /* Header */
+  .page-header { margin: 0 0 20px; }
+  .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted-2); font-weight: 600; margin: 0 0 6px; }
+  h1 { font-size: 26px; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.015em; }
+  h2 { font-size: 19px; margin: 26px 0 10px; font-weight: 600; letter-spacing: -0.01em; }
+  h3 { font-size: 12px; margin: 22px 0 8px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; }
   p { margin: 0 0 12px; }
-  .lede { color: var(--muted); margin: 0 0 18px; }
-  .intro { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 0 0 24px; }
-  .intro h1 { margin-top: 0; }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 24px; }
+  .lede { color: var(--muted); margin: 0 0 18px; font-size: 16px; }
+
+  /* Intro card */
+  .intro {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 24px; margin: 0 0 28px; box-shadow: var(--shadow);
+  }
+  .intro ul { margin: 8px 0 0; padding-left: 20px; }
+  .intro li { margin-bottom: 6px; }
+  .intro .kicker { font-size: 13px; color: var(--muted); margin-top: 14px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+    margin: 0 0 24px; position: sticky; top: 0; background: var(--bg);
+    z-index: 10; padding-top: 2px; flex-wrap: wrap;
+  }
   .tab {
-    background: none; border: none; padding: 10px 18px; font: inherit;
+    background: none; border: none; padding: 12px 18px; font: inherit;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-    margin-bottom: -1px; font-weight: 500;
+    margin-bottom: -1px; font-weight: 500; font-size: 14.5px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    transition: color 120ms ease;
   }
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .tab-key { font-size: 11px; color: var(--muted); margin-left: 6px; font-weight: 400; }
-  .panel { display: none; }
+  .tab-title { font-weight: 600; }
+  .tab-sub { font-size: 12px; color: var(--muted-2); font-weight: 400; }
+  .tab.active .tab-sub { color: var(--accent); opacity: 0.75; }
+  .panel { display: none; animation: fade 180ms ease; }
   .panel.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+  /* Meta line */
   .meta { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
-  .meta span + span::before { content: " · "; }
-  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px;
-    font-family: "SF Mono", Menlo, Consolas, monospace; }
-  ol, ul { padding-left: 22px; margin: 0 0 14px; }
-  li { margin-bottom: 6px; }
-  .callout {
-    background: var(--accent-soft); border-left: 3px solid var(--accent);
-    padding: 10px 14px; margin: 14px 0; border-radius: 0 6px 6px 0;
+  .meta span + span::before { content: " · "; color: var(--border-strong); }
+
+  /* TL;DR banner */
+  .tldr {
+    background: var(--accent-soft); border: 1px solid var(--accent-border);
+    border-radius: 10px; padding: 14px 18px; margin: 0 0 20px;
+    font-size: 14.5px;
   }
-  .callout strong { color: var(--accent); }
-  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-  .today { color: var(--muted); font-style: italic; }
-  footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
+  .tldr strong.label { color: var(--accent); letter-spacing: 0.02em;
+    font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+
+  /* Scope grid */
+  .scope {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin: 0 0 22px;
+  }
+  .scope-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font-size: 13px;
+  }
+  .scope-card .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted-2); font-weight: 600; margin-bottom: 4px;
+  }
+  .scope-card .value { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .scope-card.touches { border-color: var(--accent-border); background: var(--accent-soft); }
+  .scope-card.touches .value { color: var(--accent); }
+  .scope-card.light .value { color: var(--warn); }
+  .scope-card.light { background: var(--warn-soft); border-color: #f0e1a8; }
+  .scope-card.none .value { color: var(--good); }
+  .scope-card.none { background: var(--good-soft); border-color: #cfe5d4; }
+  .scope-card .hint { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 400; }
+
+  /* Lists */
+  ol, ul { padding-left: 22px; margin: 0 0 14px; }
+  li { margin-bottom: 7px; }
+  li > ul { margin-top: 6px; }
+
+  /* Callout */
+  .callout {
+    background: var(--good-soft); border-left: 3px solid var(--good);
+    padding: 12px 16px; margin: 16px 0; border-radius: 0 8px 8px 0;
+    font-size: 14.5px;
+  }
+  .callout strong { color: var(--good); }
+  .callout.note { background: var(--warn-soft); border-left-color: var(--warn); }
+  .callout.note strong { color: var(--warn); }
+
+  /* Code */
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; }
+
+  .today { color: var(--muted); }
+
+  kbd {
+    background: var(--surface); border: 1px solid var(--border-strong);
+    border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
+    font-size: 11px; font-family: inherit; color: var(--muted);
+  }
+
+  footer {
+    margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted-2); display: flex; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 24px 18px 60px; }
+    .scope { grid-template-columns: 1fr; }
+    h1 { font-size: 22px; }
+    .tab { padding: 10px 12px; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
+<header class="page-header">
+  <p class="eyebrow">eRegistrations · BPMN flow control</p>
+  <h1>Two related additions to the workflow engine</h1>
+  <p class="lede">Conceptual analysis of
+    <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener">TOBE-17769</a>
+    and
+    <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a>
+    — plain-English approach, minimum code change, full backwards compatibility.</p>
+</header>
+
 <div class="intro">
-  <h1>BPMN flow control — two related additions</h1>
-  <p class="lede">Both tickets touch the same subsystem: the BPA-backend Camunda 7 BPMN schema generator and the notion of <em>branching control</em> in service workflows. They extend — not replace — today's deterministic model. Both are designed to stay fully backwards compatible: services that don't opt in produce byte-identical BPMN.</p>
+  <p>Both tickets touch the same subsystem: the <strong>BPA-backend Camunda 7 BPMN schema generator</strong>. They extend — not replace — today's deterministic model. Services that don't opt in produce byte-identical BPMN.</p>
   <ul>
-    <li><strong>TOBE-17769</strong> adds a <em>targeted return loop</em> — send a task to one role and wait for it, without restarting the downstream flow.</li>
-    <li><strong>TOBE-17771</strong> adds <em>dead-ending branches</em> — let one parallel branch terminate cleanly without killing the whole process at the join.</li>
+    <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener">TOBE-17769</a> — a <em>targeted return loop</em>: send a task to one role and wait for it, without restarting the downstream flow.</li>
+    <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a> — <em>dead-ending branches</em>: let one parallel branch terminate cleanly without killing the whole process at the join.</li>
   </ul>
-  <p>Conceptually: 17769 is about <strong>returning</strong> (backwards/inwards control), 17771 is about <strong>abandoning</strong> (forwards branch termination). Different primitives, same layer of code.</p>
+  <p class="kicker"><strong>17769 is about returning</strong> (backwards / inwards control). <strong>17771 is about abandoning</strong> (forwards branch termination). Different primitives, same layer of code.</p>
 </div>
 
-<nav class="tabs" role="tablist">
-  <button class="tab active" data-panel="p1" role="tab">TOBE-17769 <span class="tab-key">Resubmit to role only</span></button>
-  <button class="tab" data-panel="p2" role="tab">TOBE-17771 <span class="tab-key">Dead branches in part B</span></button>
+<nav class="tabs" role="tablist" aria-label="Ticket analyses">
+  <button class="tab active" data-panel="p1" role="tab" id="tab-17769">
+    <span class="tab-title">TOBE-17769</span>
+    <span class="tab-sub">Resubmit to role only</span>
+  </button>
+  <button class="tab" data-panel="p2" role="tab" id="tab-17771">
+    <span class="tab-title">TOBE-17771</span>
+    <span class="tab-sub">Dead branches in part B</span>
+  </button>
+  <button class="tab" data-panel="p3" role="tab" id="tab-scope">
+    <span class="tab-title">Where the work lives</span>
+    <span class="tab-sub">BPA vs. Camunda</span>
+  </button>
 </nav>
 
-<section id="p1" class="panel active" role="tabpanel">
-  <h2>Resubmit to role only</h2>
+<!-- PANEL 1 ========================================================= -->
+<section id="p1" class="panel active" role="tabpanel" aria-labelledby="tab-17769">
+  <h2>Resubmit to role only
+    <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener" style="font-size: 0.7em; margin-left: 8px;">TOBE-17769</a>
+  </h2>
   <p class="meta"><span>Story · Priority High · In Development</span><span>Component: Camunda</span><span>Assignee: Erki Kriks</span></p>
 
+  <div class="tldr">
+    <strong class="label">At a glance</strong>
+    Add an optional <code>resubmissionMode</code> flag on the send-back destination. When set to <code>ROLE_ONLY</code>, the schema generator emits a Camunda <em>call activity</em> that loops the target role and signals back to the originator when done — instead of restarting the main flow.
+  </div>
+
+  <div class="scope">
+    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + ExclusiveBuilder + form modal</div></div>
+    <div class="scope-card light"><div class="label">DS-Backend</div><div class="value">Minor</div><div class="hint">Recognize return state in task view</div></div>
+    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Native primitives only</div></div>
+  </div>
+
   <h3>Today</h3>
-  <p class="today">When a reviewer declines and sends back, the BPMN generator wires the task back into the main sequence flow at that role. Execution resumes forward from that point — everyone downstream runs again. A <code>FileDeclineStatus</code> has a <code>RoleStatusDestination</code> that just picks the target role; there is no notion of <em>how</em> the control should come back.</p>
+  <p class="today">When a reviewer declines and sends back, the BPMN generator wires the task back into the main sequence flow at that role. Execution resumes forward from that point — everyone downstream runs again. A <code>FileDeclineStatus</code> has a <code>RoleStatusDestination</code> that just picks the target role; there is no notion of <em>how</em> control should come back.</p>
 
   <h3>What's missing</h3>
   <p>A way to say: "loop this one role only, then return to me" — a boomerang instead of a restart.</p>
@@ -87,13 +229,13 @@
     <li><strong>Schema generator</strong> (<code>ExclusiveBuilder</code>) — when <code>ROLE_ONLY</code>:
       <ul>
         <li>Don't re-enter the main sequence at the target role.</li>
-        <li>Emit a Camunda <strong>Call Activity</strong> (or bounded sub-process) scoped to that one role's user task, with the originating role's task parked on a message/signal event.</li>
+        <li>Emit a Camunda <strong>call activity</strong> (or bounded sub-process) scoped to that one role's user task, with the originating role's task parked on a message/signal event.</li>
         <li>On sub-flow completion, signal back to the originator — the process resumes exactly where it paused.</li>
       </ul>
     </li>
     <li><strong>Form UI</strong> (<code>SendBackModalWindowGenerator</code>) — if the service author enabled <code>ROLE_ONLY</code> on that transition, render a radio: "Full re-review" vs "Just fix and return". Otherwise no UI change.</li>
-    <li><strong>Runtime (DS-Backend)</strong> — no logic change; Camunda handles sub-process lifecycle natively. Only the return-signal callback is new.</li>
-    <li><strong>Edge case (from the AC)</strong> — if the "role-only" target declines or never responds, the sub-process terminates with a signal that the originator interprets as a forced deterministic fallback (revert to today's behavior rather than deadlock). Configurable, or hardcoded per safety.</li>
+    <li><strong>Runtime (DS-Backend)</strong> — no business logic change; Camunda handles sub-process lifecycle natively. Minor: the task view may need to recognize the "returned from role-only sub-flow" state so the originator's UI shows the right label.</li>
+    <li><strong>Edge case (from the AC)</strong> — if the "role-only" target declines or never responds, the sub-process terminates with a signal that the originator interprets as a forced deterministic fallback (revert to today's behavior rather than deadlock).</li>
   </ol>
 
   <div class="callout">
@@ -101,22 +243,36 @@
   </div>
 </section>
 
-<section id="p2" class="panel" role="tabpanel">
-  <h2>Dead branches in part B</h2>
+<!-- PANEL 2 ========================================================= -->
+<section id="p2" class="panel" role="tabpanel" aria-labelledby="tab-17771">
+  <h2>Dead branches in part B
+    <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener" style="font-size: 0.7em; margin-left: 8px;">TOBE-17771</a>
+  </h2>
   <p class="meta"><span>Story · Priority Highest · To Do</span><span>Reference: Jamaica SEZ service</span></p>
+
+  <div class="tldr">
+    <strong class="label">At a glance</strong>
+    Add an optional <code>branchTerminationMode</code> flag on a role. When set, a <code>FileRejectStatus</code> no longer kills the whole process — it terminates only that branch's token, letting the inclusive-join still fire on the remaining active branches.
+  </div>
+
+  <div class="scope">
+    <div class="scope-card touches"><div class="label">BPA-backend</div><div class="value">Modified</div><div class="hint">Model + JoinSequence/ExclusiveBuilder + DMN</div></div>
+    <div class="scope-card none"><div class="label">DS-Backend</div><div class="value">Untouched</div><div class="hint">No runtime change</div></div>
+    <div class="scope-card none"><div class="label">Camunda</div><div class="value">Untouched</div><div class="hint">Relies on inclusive-join semantics</div></div>
+  </div>
 
   <h3>Today</h3>
   <p class="today">Part B (post-submission back-office) can fork into parallel roles via an inclusive gateway, then join. For the join to fire, each active branch must emit a <code>FileValidatedStatus</code>. If a role instead issues a <code>FileRejectStatus</code>, the whole process terminates — there is no concept of "this objection kills its branch but the case continues" or "this branch can be skipped without starving the join".</p>
 
   <h3>Jamaica pattern</h3>
-  <p>The SEZ-Developer service (v70) has 8 parallel registrations: three "No objection" steps (JCA, MOFPS, TAJ) and four screenings (BPSS, CAS, LSU, TSI). A "No objection" role may legitimately not weigh in; one screening may reject while others approve — yet the case must still reach the coordinator. Branches that go nowhere must not block the join.</p>
+  <p>The <a href="https://bpa.jamaica.eregistrations.org/services/9f3fdc17-7b19-4790-90eb-54023c7bc3cc/forms/applicant-form" target="_blank" rel="noopener">SEZ-Developer service</a> (v70) has 8 parallel registrations: three "No objection" steps (JCA, MOFPS, TAJ) and four screenings (BPSS, CAS, LSU, TSI). A "No objection" role may legitimately not weigh in; one screening may reject while others approve — yet the case must still reach the coordinator. Branches that go nowhere must not block the join.</p>
 
   <h3>Minimum-change concept</h3>
   <ol>
     <li><strong>Model</strong> — add one optional flag on <code>Role</code> (or on the fork entry in the graph): <code>branchTerminationMode</code> = <code>BLOCKING</code> (default = today) | <code>DEAD_END_ON_REJECT</code> | <code>OPTIONAL</code>. Unset = today's behavior.</li>
     <li><strong>Schema generator</strong> (<code>JoinSequenceBuilder</code> + <code>ExclusiveBuilder</code>) — when a branch is marked dead-end-capable:
       <ul>
-        <li>On <code>FileRejectStatus</code>, route that branch to a <strong>terminate-branch end event</strong> scoped to the fork's sub-process, not the global terminate. Camunda's inclusive join already tolerates tokens that never arrive when not activated; we leverage that by producing a token-consuming terminate event per branch.</li>
+        <li>On <code>FileRejectStatus</code>, route that branch to a <strong>terminate-branch end event</strong> scoped to the fork's sub-process, not the global terminate. Camunda's inclusive join already tolerates tokens that never arrive; we leverage that by producing a token-consuming terminate event per branch.</li>
         <li>Extend the DMN decision table at the join with a "branch dead" input so the downstream decision explicitly knows which branches didn't vote.</li>
       </ul>
     </li>
@@ -129,8 +285,51 @@
   </div>
 </section>
 
+<!-- PANEL 3 ========================================================= -->
+<section id="p3" class="panel" role="tabpanel" aria-labelledby="tab-scope">
+  <h2>Where the work actually lives</h2>
+  <p class="lede">Erki's framing is correct: <strong>this is a BPA-backend change, not a Camunda change.</strong> Here's the precise breakdown so there's no ambiguity during review.</p>
+
+  <h3>BPA-backend — the schema generator (primary surface)</h3>
+  <p>BPMN XML is generated server-side in Java by:</p>
+  <ul>
+    <li><code>ProcessBuilder.generateBPMN()</code> — orchestrator</li>
+    <li><code>ExclusiveBuilder</code> — emits decline / reject routing (touched by both tickets)</li>
+    <li><code>JoinSequenceBuilder</code> — emits inclusive fork-join structures (touched by <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a>)</li>
+    <li><code>SendBackModalWindowGenerator</code> — emits the Form.io modal shown to reviewers (touched by <a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener">TOBE-17769</a>)</li>
+  </ul>
+  <p>Model additions: <code>RoleStatusDestination.resubmissionMode</code> (17769), <code>Role.branchTerminationMode</code> (17771). Both nullable, both default to today's behavior.</p>
+
+  <h3>DS-Backend — runtime glue</h3>
+  <ul>
+    <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener">TOBE-17769</a> — minor: the task view that handles send-back completion may need to recognize the "returned from role-only sub-flow" case so the UI label is correct. No new Camunda API calls.</li>
+    <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a> — zero. Camunda handles inclusive-join with missing tokens natively.</li>
+  </ul>
+
+  <h3>Camunda — the engine</h3>
+  <ul>
+    <li>No code written. No fork of Camunda. No custom delegates.</li>
+    <li>We only emit BPMN elements Camunda 7 already supports:
+      <strong>call activity</strong>, <strong>message/signal intermediate events</strong>, <strong>terminate end event</strong>, <strong>inclusive gateway</strong>, <strong>DMN business rule task</strong>.</li>
+  </ul>
+
+  <div class="callout note">
+    <strong>Caveat — the testing matters.</strong> We don't modify Camunda, but we still have to verify at runtime that:
+    <ul style="margin-top: 6px;">
+      <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17769" target="_blank" rel="noopener">TOBE-17769</a> — the return path (sub-flow signal → parent resumes parked task) works end-to-end and process variables survive the round-trip.</li>
+      <li><a class="ticket" href="https://unctad.atlassian.net/browse/TOBE-17771" target="_blank" rel="noopener">TOBE-17771</a> — the inclusive-join reliably fires when one branch ends via a scoped terminate event while others approve.</li>
+    </ul>
+    Both are integration-test territory, not Camunda code.
+  </div>
+
+  <div class="callout">
+    <strong>Bottom line for Erki's message:</strong> "BPMN schemas are generated in BPA side. Camunda is just runtime" — correct. The change is in the generator; Camunda is exercised through standard primitives and validated via integration tests.
+  </div>
+</section>
+
 <footer>
-  Generated 2026-04-15 · source: Jira MCP (TOBE-17769, TOBE-17771) + BPA MCP (jamaica/9f3fdc17) + eR code exploration.
+  <span>Generated 2026-04-15 · sources: Jira MCP, BPA MCP (jamaica), eR code exploration</span>
+  <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> to switch tabs</span>
 </footer>
 
 </div>
@@ -138,12 +337,30 @@
 <script>
   const tabs = document.querySelectorAll('.tab');
   const panels = document.querySelectorAll('.panel');
-  tabs.forEach(t => t.addEventListener('click', () => {
-    tabs.forEach(x => x.classList.remove('active'));
-    panels.forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById(t.dataset.panel).classList.add('active');
-  }));
+
+  function activate(panelId, push = true) {
+    tabs.forEach(x => x.classList.toggle('active', x.dataset.panel === panelId));
+    panels.forEach(x => x.classList.toggle('active', x.id === panelId));
+    if (push && location.hash !== '#' + panelId) {
+      history.replaceState(null, '', '#' + panelId);
+    }
+  }
+
+  tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.panel)));
+
+  const initial = location.hash.replace('#', '');
+  if (['p1', 'p2', 'p3'].includes(initial)) activate(initial, false);
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.replace('#', '');
+    if (['p1', 'p2', 'p3'].includes(h)) activate(h, false);
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === '1') activate('p1');
+    if (e.key === '2') activate('p2');
+    if (e.key === '3') activate('p3');
+  });
 </script>
 </body>
 </html>
